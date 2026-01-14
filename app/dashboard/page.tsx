@@ -1,15 +1,6 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Line } from 'react-chartjs-2';
-import {
-  Chart as ChartJS,
-  LineElement,
-  CategoryScale,
-  LinearScale,
-  PointElement,
-} 
-from 'chart.js';
 import { auth, db } from '@/lib/firebase';
 import {
   collection,
@@ -21,28 +12,47 @@ import {
   doc,
   updateDoc,
 } from 'firebase/firestore';
-
 import { onAuthStateChanged } from 'firebase/auth';
+
+import { Line } from 'react-chartjs-2';
+import {
+  Chart as ChartJS,
+  LineElement,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+} from 'chart.js';
 
 ChartJS.register(LineElement, CategoryScale, LinearScale, PointElement);
 
+type Trade = {
+  id: string;
+  date: string;
+  symbol: string;
+  direction: 'Buy' | 'Sell';
+  entry: number;
+  exit: number;
+  lot: number;
+  notes: string;
+  pnl: number;
+};
+
 export default function DashboardPage() {
-  // ─────────────── STATE ───────────────
   const [user, setUser] = useState<any>(null);
-  const [trades, setTrades] = useState<any[]>([]);
+  const [trades, setTrades] = useState<Trade[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
 
   const [trade, setTrade] = useState({
     date: '',
     symbol: '',
-    direction: 'Buy',
+    direction: 'Buy' as 'Buy' | 'Sell',
     entry: 0,
     exit: 0,
     lot: 0,
     notes: '',
   });
 
-  // ─────────────── AUTH ───────────────
+  /* ───────────────── AUTH ───────────────── */
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (u) => {
       if (!u) {
@@ -55,41 +65,25 @@ export default function DashboardPage() {
     return () => unsub();
   }, []);
 
-  // ─────────────── LOAD TRADES ───────────────
+  /* ───────────────── DATA ───────────────── */
   const loadTrades = async (uid: string) => {
     const q = query(collection(db, 'trades'), where('uid', '==', uid));
     const snap = await getDocs(q);
-    setTrades(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
-
+    setTrades(
+      snap.docs.map((d) => ({ id: d.id, ...(d.data() as Trade) }))
+    );
   };
-  // ─────────────── CALCULATIONS ───────────────
+
   const pnl =
     ((trade.exit - trade.entry) * trade.lot) *
       (trade.direction === 'Buy' ? 1 : -1) || 0;
 
-  const equityCurve = trades.reduce((acc: number[], t: any, i: number) => {
+  const equityCurve = trades.reduce((acc: number[], t, i) => {
     acc.push((acc[i - 1] || 0) + (t.pnl || 0));
     return acc;
   }, []);
 
-  const totalPnL = trades.reduce((sum, t) => sum + (t.pnl || 0), 0);
-  const wins = trades.filter((t) => t.pnl > 0).length;
-  const winRate = trades.length
-    ? ((wins / trades.length) * 100).toFixed(1)
-    : '0';
-
-  const maxDrawdown = equityCurve.reduce(
-    (acc, value) => {
-      const peak = Math.max(acc.peak, value);
-      return {
-        peak,
-        max: Math.max(acc.max, peak - value),
-      };
-    },
-    { peak: 0, max: 0 }
-  ).max;
-
-  // ─────────────── SAVE / UPDATE ───────────────
+  /* ───────────────── ACTIONS ───────────────── */
   const saveTrade = async () => {
     if (!user) return;
 
@@ -97,7 +91,6 @@ export default function DashboardPage() {
       await updateDoc(doc(db, 'trades', editingId), {
         ...trade,
         pnl,
-        uid: user.uid,
       });
       setEditingId(null);
     } else {
@@ -120,312 +113,207 @@ export default function DashboardPage() {
 
     loadTrades(user.uid);
   };
-// ─────────────── EXPORT CSV ───────────────
-const exportCSV = () => {
-  if (trades.length === 0) return;
 
-  const headers = [
-    'Date',
-    'Symbol',
-    'Direction',
-    'Entry',
-    'Exit',
-    'Lot',
-    'PnL',
-    'Notes',
-  ];
-
-  const rows = trades.map((t) => [
-    t.date,
-    t.symbol,
-    t.direction,
-    t.entry,
-    t.exit,
-    t.lot,
-    t.pnl,
-    `"${(t.notes || '').replace(/"/g, '""')}"`,
-  ]);
-
-  const csvContent =
-    [headers, ...rows].map((e) => e.join(',')).join('\n');
-
-  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
-
-  const link = document.createElement('a');
-  link.href = url;
-  link.setAttribute('download', 'trade-journal.csv');
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-};
-  // ─────────────── DELETE ───────────────
   const deleteTrade = async (id: string) => {
     await deleteDoc(doc(db, 'trades', id));
     if (user) loadTrades(user.uid);
   };
 
-  // ─────────────── UI ───────────────
+  const exportCSV = () => {
+    if (trades.length === 0) return;
+
+    const headers = [
+      'Date',
+      'Symbol',
+      'Direction',
+      'Entry',
+      'Exit',
+      'Lot',
+      'PnL',
+      'Notes',
+    ];
+
+    const rows = trades.map((t) => [
+      t.date,
+      t.symbol,
+      t.direction,
+      t.entry,
+      t.exit,
+      t.lot,
+      t.pnl,
+      `"${(t.notes || '').replace(/"/g, '""')}"`,
+    ]);
+
+    const csv =
+      [headers, ...rows].map((r) => r.join(',')).join('\n');
+
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', 'trade-journal.csv');
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  /* ───────────────── UI ───────────────── */
   return (
-    <main className="p-8 max-w-5xl mx-auto bg-gray-50 min-h-screen">
-      <div className="space-y-8">
+    <main className="p-8 max-w-6xl mx-auto space-y-8">
+      <h1 className="text-2xl font-bold">Dashboard</h1>
 
-        {/* Header */}
-        <h1 className="text-3xl font-bold">Dashboard</h1>
-        <p className="text-red-600 text-xl font-bold">
-  EXPORT DEBUG VISIBLE
-</p>
+      {/* Equity Curve */}
+      <div className="border rounded-xl p-4 bg-white dark:bg-gray-900">
+        <h2 className="text-lg font-semibold mb-3">Equity Curve</h2>
+        {trades.length === 0 ? (
+          <p className="text-sm text-gray-500">No trades yet.</p>
+        ) : (
+          <Line
+            data={{
+              labels: trades.map((t) => t.date),
+              datasets: [
+                {
+                  label: 'Equity',
+                  data: equityCurve,
+                  borderWidth: 2,
+                },
+              ],
+            }}
+          />
+        )}
+      </div>
 
-        {/* Analytics */}
-        <div className="grid grid-cols-3 gap-4">
-          <div className="bg-white border rounded-xl p-4 shadow-sm">
-            <p className="text-sm text-gray-500">Total P&amp;L</p>
-            <p
-              className={`text-2xl font-bold ${
-                totalPnL >= 0 ? 'text-green-600' : 'text-red-600'
-              }`}
-            >
-              {totalPnL.toFixed(2)}
-            </p>
-          </div>
+      {/* Trade Form */}
+      <div className="grid grid-cols-2 gap-3 border rounded-xl p-4 bg-white dark:bg-gray-900">
+        <input
+          placeholder="Date"
+          value={trade.date}
+          onChange={(e) => setTrade({ ...trade, date: e.target.value })}
+        />
+        <input
+          placeholder="Symbol"
+          value={trade.symbol}
+          onChange={(e) =>
+            setTrade({ ...trade, symbol: e.target.value })
+          }
+        />
+        <select
+          value={trade.direction}
+          onChange={(e) =>
+            setTrade({
+              ...trade,
+              direction: e.target.value as 'Buy' | 'Sell',
+            })
+          }
+        >
+          <option>Buy</option>
+          <option>Sell</option>
+        </select>
+        <input
+          type="number"
+          placeholder="Entry"
+          value={trade.entry}
+          onChange={(e) =>
+            setTrade({ ...trade, entry: +e.target.value })
+          }
+        />
+        <input
+          type="number"
+          placeholder="Exit"
+          value={trade.exit}
+          onChange={(e) =>
+            setTrade({ ...trade, exit: +e.target.value })
+          }
+        />
+        <input
+          type="number"
+          placeholder="Lot"
+          value={trade.lot}
+          onChange={(e) =>
+            setTrade({ ...trade, lot: +e.target.value })
+          }
+        />
+        <textarea
+          className="col-span-2"
+          placeholder="Notes"
+          value={trade.notes}
+          onChange={(e) =>
+            setTrade({ ...trade, notes: e.target.value })
+          }
+        />
 
-          <div className="bg-white border rounded-xl p-4 shadow-sm">
-            <p className="text-sm text-gray-500">Win Rate</p>
-            <p className="text-2xl font-bold">{winRate}%</p>
-          </div>
-
-          <div className="bg-white border rounded-xl p-4 shadow-sm">
-            <p className="text-sm text-gray-500">Max Drawdown</p>
-            <p className="text-2xl font-bold text-red-600">
-              -{maxDrawdown.toFixed(2)}
-            </p>
-          </div>
+        <div className="col-span-2 font-semibold">
+          P&amp;L:{' '}
+          <span className={pnl >= 0 ? 'text-green-600' : 'text-red-600'}>
+            {pnl.toFixed(2)}
+          </span>
         </div>
 
-        {/* Equity Curve */}
-        <div className="bg-white border rounded-xl p-5 shadow-sm">
-          <h2 className="text-lg font-semibold mb-4">Equity Curve</h2>
+        <button
+          onClick={saveTrade}
+          className="col-span-2 bg-black text-white py-2 rounded"
+        >
+          {editingId ? 'Update Trade' : 'Save Trade'}
+        </button>
+      </div>
 
-          {trades.length === 0 ? (
-            <p>No trades yet.</p>
-          ) : (
-            <Line
-              data={{
-                labels: trades.map((t) => t.date),
-                datasets: [
-                  {
-                    label: 'Equity',
-                    data: equityCurve,
-                    borderWidth: 2,
-                  },
-                ],
-              }}
-            />
-          )}
-        </div>
-
-        {/* Trade Form */}
-        <div className="bg-white border rounded-xl p-5 shadow-sm grid grid-cols-2 gap-3">
-          <input
-            placeholder="Date"
-            value={trade.date}
-            onChange={(e) => setTrade({ ...trade, date: e.target.value })}
-          />
-          <input
-            placeholder="Symbol"
-            value={trade.symbol}
-            onChange={(e) => setTrade({ ...trade, symbol: e.target.value })}
-          />
-          <select
-            value={trade.direction}
-            onChange={(e) => setTrade({ ...trade, direction: e.target.value })}
-          >
-            <option>Buy</option>
-            <option>Sell</option>
-          </select>
-          <input
-            type="number"
-            placeholder="Entry"
-            value={trade.entry}
-            onChange={(e) => setTrade({ ...trade, entry: +e.target.value })}
-          />
-          <input
-            type="number"
-            placeholder="Exit"
-            value={trade.exit}
-            onChange={(e) => setTrade({ ...trade, exit: +e.target.value })}
-          />
-          <input
-            type="number"
-            placeholder="Lot"
-            value={trade.lot}
-            onChange={(e) => setTrade({ ...trade, lot: +e.target.value })}
-          />
-          <textarea
-            className="col-span-2"
-            placeholder="Notes"
-            value={trade.notes}
-            onChange={(e) => setTrade({ ...trade, notes: e.target.value })}
-          />
-
-          <div className="col-span-2 font-semibold">
-            P&amp;L:{' '}
-            <span className={pnl >= 0 ? 'text-green-600' : 'text-red-600'}>
-              {pnl.toFixed(2)}
-            </span>
-          </div>
-
+      {/* Trades Table */}
+      <div className="bg-white dark:bg-gray-900 border rounded-xl overflow-hidden">
+        <div className="flex justify-between items-center p-4 border-b">
+          <h2 className="text-xl font-semibold">Your Trades</h2>
           <button
-            onClick={saveTrade}
-            className="bg-black text-white py-2 col-span-2 hover:bg-gray-800 transition"
+            onClick={exportCSV}
+            className="text-sm bg-black text-white px-3 py-1 rounded"
           >
-            {editingId ? 'Update Trade' : 'Save Trade'}
+            Export CSV
           </button>
         </div>
 
-        {/* Trade Table */}
-        <div className="bg-white border rounded-xl shadow-sm overflow-hidden">
-          <div className="flex items-center justify-between p-4 border-b">
-   <h2 className="text-xl font-semibold">Your Trades</h2>
-   <div className="overflow-x-auto border rounded-xl">
-  <table className="w-full text-sm">
-    <thead className="bg-gray-100 text-left">
-      <tr>
-        <th className="p-3">Date</th>
-        <th className="p-3">Symbol</th>
-        <th className="p-3">Side</th>
-        <th className="p-3">P&amp;L</th>
-        <th className="p-3 text-right">Actions</th>
-      </tr>
-    </thead>
-
-    <tbody>
-      {trades.map((t) => (
-        <tr key={t.id} className="border-t">
-          <td className="p-3">{t.date}</td>
-          <td className="p-3 font-medium">{t.symbol}</td>
-          <td className="p-3">{t.direction}</td>
-
-          <td
-            className={`p-3 font-semibold ${
-              t.pnl >= 0 ? 'text-green-600' : 'text-red-600'
-            }`}
-          >
-            {t.pnl.toFixed(2)}
-          </td>
-
-          <td className="p-3 text-right space-x-3">
-            <button
-              onClick={() => {
-                setTrade({
-                  date: t.date,
-                  symbol: t.symbol,
-                  direction: t.direction,
-                  entry: t.entry,
-                  exit: t.exit,
-                  lot: t.lot,
-                  notes: t.notes,
-                });
-                setEditingId(t.id);
-              }}
-              className="text-blue-600 text-sm"
-            >
-              Edit
-            </button>
-
-            <button
-              onClick={() => deleteTrade(t.id)}
-              className="text-red-600 text-sm"
-            >
-              Delete
-            </button>
-          </td>
-        </tr>
-      ))}
-    </tbody>
-  </table>
-</div>
-
-
-  <button
-    onClick={exportCSV}
-    className="text-sm bg-black text-white px-3 py-1 rounded hover:bg-gray-800"
-  >
-    Export CSV
-  </button>
-</div>
-
-          <table className="w-full text-sm">
-            <thead className="bg-gray-100 text-gray-600">
-              <tr>
-                <th className="px-3 py-2 text-left">Date</th>
-                <th className="px-3 py-2 text-left">Symbol</th>
-                <th className="px-3 py-2 text-left">Side</th>
-                <th className="px-3 py-2 text-right">P&amp;L</th>
-                <th className="px-3 py-2 text-right">Actions</th>
+        <table className="w-full text-sm">
+          <thead className="bg-gray-100 dark:bg-gray-800">
+            <tr>
+              <th className="p-3 text-left">Date</th>
+              <th className="p-3 text-left">Symbol</th>
+              <th className="p-3 text-left">Side</th>
+              <th className="p-3 text-left">P&amp;L</th>
+              <th className="p-3 text-right">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {trades.map((t) => (
+              <tr key={t.id} className="border-t">
+                <td className="p-3">{t.date}</td>
+                <td className="p-3">{t.symbol}</td>
+                <td className="p-3">{t.direction}</td>
+                <td
+                  className={`p-3 font-semibold ${
+                    t.pnl >= 0 ? 'text-green-600' : 'text-red-600'
+                  }`}
+                >
+                  {t.pnl.toFixed(2)}
+                </td>
+                <td className="p-3 text-right space-x-3">
+                  <button
+                    className="text-blue-600"
+                    onClick={() => {
+                      setTrade(t);
+                      setEditingId(t.id);
+                    }}
+                  >
+                    Edit
+                  </button>
+                  <button
+                    className="text-red-600"
+                    onClick={() => deleteTrade(t.id)}
+                  >
+                    Delete
+                  </button>
+                </td>
               </tr>
-            </thead>
-
-            <tbody>
-              {trades.length === 0 && (
-                <tr>
-                  <td colSpan={5} className="text-center py-6 text-gray-500">
-                    No trades yet
-                  </td>
-                </tr>
-              )}
-
-              {trades.map((t: any) => (
-                <tr key={t.id} className="border-t hover:bg-gray-50">
-                  <td className="px-3 py-2">{t.date}</td>
-                  <td className="px-3 py-2 font-medium">{t.symbol}</td>
-                  <td
-                    className={`px-3 py-2 ${
-                      t.direction === 'Buy'
-                        ? 'text-green-600'
-                        : 'text-red-600'
-                    }`}
-                  >
-                    {t.direction}
-                  </td>
-                  <td
-                    className={`px-3 py-2 text-right font-semibold ${
-                      t.pnl >= 0 ? 'text-green-600' : 'text-red-600'
-                    }`}
-                  >
-                    {t.pnl.toFixed(2)}
-                  </td>
-                  <td className="px-3 py-2 text-right space-x-3">
-                    <button
-                      onClick={() => {
-                        setTrade({
-                          date: t.date,
-                          symbol: t.symbol,
-                          direction: t.direction,
-                          entry: t.entry,
-                          exit: t.exit,
-                          lot: t.lot,
-                          notes: t.notes,
-                        });
-                        setEditingId(t.id);
-                      }}
-                      className="text-blue-600 hover:underline"
-                    >
-                      Edit
-                    </button>
-                    <button
-                      onClick={() => deleteTrade(t.id)}
-                      className="text-red-600 hover:underline"
-                    >
-                      Delete
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
+            ))}
+          </tbody>
+        </table>
       </div>
     </main>
   );
