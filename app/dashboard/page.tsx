@@ -172,6 +172,9 @@ const exportCSV = () => {
 
         {/* Header */}
         <h1 className="text-3xl font-bold">Dashboard</h1>
+        <p className="text-red-600 text-xl font-bold">
+  EXPORT DEBUG VISIBLE
+</p>
 
         {/* Analytics */}
         <div className="grid grid-cols-3 gap-4">
