@@ -1,42 +1,54 @@
 'use client';
 
 import Link from 'next/link';
-import { auth } from '@/lib/firebase';
-import { signOut } from 'firebase/auth';
 import { useEffect, useState } from 'react';
-import { onAuthStateChanged } from 'firebase/auth';
 
 export default function Navbar() {
-  const [user, setUser] = useState<any>(null);
+  const [dark, setDark] = useState(false);
 
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, (u) => setUser(u));
-    return () => unsub();
+    const saved = localStorage.getItem('theme');
+    if (saved === 'dark') {
+      document.documentElement.classList.add('dark');
+      setDark(true);
+    }
   }, []);
 
-  const logout = async () => {
-    await signOut(auth);
-    window.location.href = '/login';
+  const toggleTheme = () => {
+    if (dark) {
+      document.documentElement.classList.remove('dark');
+      localStorage.setItem('theme', 'light');
+    } else {
+      document.documentElement.classList.add('dark');
+      localStorage.setItem('theme', 'dark');
+    }
+    setDark(!dark);
   };
 
   return (
-    <nav className="w-full border-b px-6 py-3 flex justify-between items-center">
-      <Link href="/" className="font-bold text-lg">
+    <nav className="flex items-center justify-between px-6 py-4 border-b bg-white dark:bg-gray-900 dark:border-gray-700">
+      <Link
+        href="/"
+        className="font-bold text-lg text-black dark:text-white"
+      >
         Trade Journal
       </Link>
 
-      <div className="space-x-4">
-        <Link href="/">Home</Link>
+      <div className="flex items-center space-x-6">
+        <Link
+          href="/dashboard"
+          className="text-gray-700 dark:text-gray-300"
+        >
+          Dashboard
+        </Link>
 
-        {user && <Link href="/dashboard">Dashboard</Link>}
-
-        {!user ? (
-          <Link href="/login">Login</Link>
-        ) : (
-          <button onClick={logout} className="text-red-600">
-            Logout
-          </button>
-        )}
+        <button
+          onClick={toggleTheme}
+          className="text-xl"
+          title="Toggle theme"
+        >
+          {dark ? '☀️' : '🌙'}
+        </button>
       </div>
     </nav>
   );

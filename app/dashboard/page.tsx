@@ -287,6 +287,65 @@ const exportCSV = () => {
         <div className="bg-white border rounded-xl shadow-sm overflow-hidden">
           <div className="flex items-center justify-between p-4 border-b">
    <h2 className="text-xl font-semibold">Your Trades</h2>
+   <div className="overflow-x-auto border rounded-xl">
+  <table className="w-full text-sm">
+    <thead className="bg-gray-100 text-left">
+      <tr>
+        <th className="p-3">Date</th>
+        <th className="p-3">Symbol</th>
+        <th className="p-3">Side</th>
+        <th className="p-3">P&amp;L</th>
+        <th className="p-3 text-right">Actions</th>
+      </tr>
+    </thead>
+
+    <tbody>
+      {trades.map((t) => (
+        <tr key={t.id} className="border-t">
+          <td className="p-3">{t.date}</td>
+          <td className="p-3 font-medium">{t.symbol}</td>
+          <td className="p-3">{t.direction}</td>
+
+          <td
+            className={`p-3 font-semibold ${
+              t.pnl >= 0 ? 'text-green-600' : 'text-red-600'
+            }`}
+          >
+            {t.pnl.toFixed(2)}
+          </td>
+
+          <td className="p-3 text-right space-x-3">
+            <button
+              onClick={() => {
+                setTrade({
+                  date: t.date,
+                  symbol: t.symbol,
+                  direction: t.direction,
+                  entry: t.entry,
+                  exit: t.exit,
+                  lot: t.lot,
+                  notes: t.notes,
+                });
+                setEditingId(t.id);
+              }}
+              className="text-blue-600 text-sm"
+            >
+              Edit
+            </button>
+
+            <button
+              onClick={() => deleteTrade(t.id)}
+              className="text-red-600 text-sm"
+            >
+              Delete
+            </button>
+          </td>
+        </tr>
+      ))}
+    </tbody>
+  </table>
+</div>
+
 
   <button
     onClick={exportCSV}
