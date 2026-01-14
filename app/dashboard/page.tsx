@@ -25,7 +25,7 @@ import {
 
 ChartJS.register(LineElement, CategoryScale, LinearScale, PointElement);
 
-/* ───────────── TYPES ───────────── */
+/* ================= TYPES ================= */
 
 type TradeData = {
   date: string;
@@ -42,6 +42,8 @@ type Trade = TradeData & {
   id: string;
 };
 
+/* ================= PAGE ================= */
+
 export default function DashboardPage() {
   const [user, setUser] = useState<any>(null);
   const [trades, setTrades] = useState<Trade[]>([]);
@@ -57,7 +59,7 @@ export default function DashboardPage() {
     notes: '',
   });
 
-  /* ───────────── AUTH ───────────── */
+  /* ================= AUTH ================= */
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (u) => {
@@ -71,30 +73,29 @@ export default function DashboardPage() {
     return () => unsub();
   }, []);
 
-  /* ───────────── DATA ───────────── */
+  /* ================= DATA ================= */
 
- const loadTrades = async (uid: string) => {
-  const q = query(collection(db, 'trades'), where('uid', '==', uid));
-  const snap = await getDocs(q);
+  const loadTrades = async (uid: string) => {
+    const q = query(collection(db, 'trades'), where('uid', '==', uid));
+    const snap = await getDocs(q);
 
-  setTrades(
-    snap.docs.map((d) => {
-      const data = d.data() as TradeData;
-      return {
-        id: d.id,
-        date: data.date,
-        symbol: data.symbol,
-        direction: data.direction,
-        entry: data.entry,
-        exit: data.exit,
-        lot: data.lot,
-        notes: data.notes,
-        pnl: data.pnl,
-      };
-    })
-  );
-};
-
+    setTrades(
+      snap.docs.map((d) => {
+        const data = d.data() as TradeData;
+        return {
+          id: d.id,
+          date: data.date,
+          symbol: data.symbol,
+          direction: data.direction,
+          entry: data.entry,
+          exit: data.exit,
+          lot: data.lot,
+          notes: data.notes,
+          pnl: data.pnl,
+        };
+      })
+    );
+  };
 
   const pnl =
     ((trade.exit - trade.entry) * trade.lot) *
@@ -105,7 +106,7 @@ export default function DashboardPage() {
     return acc;
   }, []);
 
-  /* ───────────── ACTIONS ───────────── */
+  /* ================= ACTIONS ================= */
 
   const saveTrade = async () => {
     if (!user) return;
@@ -175,20 +176,20 @@ export default function DashboardPage() {
 
     const link = document.createElement('a');
     link.href = url;
-    link.setAttribute('download', 'trade-journal.csv');
+    link.download = 'trade-journal.csv';
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
   };
 
-  /* ───────────── UI ───────────── */
+  /* ================= UI ================= */
 
   return (
     <main className="p-8 max-w-6xl mx-auto space-y-8">
       <h1 className="text-2xl font-bold">Dashboard</h1>
 
       {/* Equity Curve */}
-      <div className="border rounded-xl p-4 bg-white dark:bg-gray-900">
+      <div className="bg-white dark:bg-gray-900 border rounded-xl p-4">
         <h2 className="text-lg font-semibold mb-3">Equity Curve</h2>
         {trades.length === 0 ? (
           <p className="text-sm text-gray-500">No trades yet.</p>
@@ -209,7 +210,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Trade Form */}
-      <div className="grid grid-cols-2 gap-3 border rounded-xl p-4 bg-white dark:bg-gray-900">
+      <div className="grid grid-cols-2 gap-3 bg-white dark:bg-gray-900 border rounded-xl p-4">
         <input
           placeholder="Date"
           value={trade.date}
@@ -272,7 +273,7 @@ export default function DashboardPage() {
         </button>
       </div>
 
-      {/* Trades Table */}
+      {/* Trades Table (ONLY ONE) */}
       <div className="bg-white dark:bg-gray-900 border rounded-xl overflow-hidden">
         <div className="flex justify-between items-center p-4 border-b">
           <h2 className="text-xl font-semibold">Your Trades</h2>
