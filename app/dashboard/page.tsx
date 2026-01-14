@@ -120,7 +120,45 @@ export default function DashboardPage() {
 
     loadTrades(user.uid);
   };
+// ─────────────── EXPORT CSV ───────────────
+const exportCSV = () => {
+  if (trades.length === 0) return;
 
+  const headers = [
+    'Date',
+    'Symbol',
+    'Direction',
+    'Entry',
+    'Exit',
+    'Lot',
+    'PnL',
+    'Notes',
+  ];
+
+  const rows = trades.map((t) => [
+    t.date,
+    t.symbol,
+    t.direction,
+    t.entry,
+    t.exit,
+    t.lot,
+    t.pnl,
+    `"${(t.notes || '').replace(/"/g, '""')}"`,
+  ]);
+
+  const csvContent =
+    [headers, ...rows].map((e) => e.join(',')).join('\n');
+
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+
+  const link = document.createElement('a');
+  link.href = url;
+  link.setAttribute('download', 'trade-journal.csv');
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+};
   // ─────────────── DELETE ───────────────
   const deleteTrade = async (id: string) => {
     await deleteDoc(doc(db, 'trades', id));
@@ -244,7 +282,16 @@ export default function DashboardPage() {
 
         {/* Trade Table */}
         <div className="bg-white border rounded-xl shadow-sm overflow-hidden">
-          <h2 className="text-xl font-semibold p-4 border-b">Your Trades</h2>
+          <div className="flex items-center justify-between p-4 border-b">
+   <h2 className="text-xl font-semibold">Your Trades</h2>
+
+  <button
+    onClick={exportCSV}
+    className="text-sm bg-black text-white px-3 py-1 rounded hover:bg-gray-800"
+  >
+    Export CSV
+  </button>
+</div>
 
           <table className="w-full text-sm">
             <thead className="bg-gray-100 text-gray-600">
