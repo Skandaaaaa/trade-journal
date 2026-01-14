@@ -25,8 +25,9 @@ import {
 
 ChartJS.register(LineElement, CategoryScale, LinearScale, PointElement);
 
-type Trade = {
-  id: string;
+/* ───────────── TYPES ───────────── */
+
+type TradeData = {
   date: string;
   symbol: string;
   direction: 'Buy' | 'Sell';
@@ -37,22 +38,27 @@ type Trade = {
   pnl: number;
 };
 
+type Trade = TradeData & {
+  id: string;
+};
+
 export default function DashboardPage() {
   const [user, setUser] = useState<any>(null);
   const [trades, setTrades] = useState<Trade[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
 
-  const [trade, setTrade] = useState({
+  const [trade, setTrade] = useState<Omit<TradeData, 'pnl'>>({
     date: '',
     symbol: '',
-    direction: 'Buy' as 'Buy' | 'Sell',
+    direction: 'Buy',
     entry: 0,
     exit: 0,
     lot: 0,
     notes: '',
   });
 
-  /* ───────────────── AUTH ───────────────── */
+  /* ───────────── AUTH ───────────── */
+
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (u) => {
       if (!u) {
@@ -65,25 +71,42 @@ export default function DashboardPage() {
     return () => unsub();
   }, []);
 
-  /* ───────────────── DATA ───────────────── */
-  const loadTrades = async (uid: string) => {
-    const q = query(collection(db, 'trades'), where('uid', '==', uid));
-    const snap = await getDocs(q);
-    setTrades(
-      snap.docs.map((d) => ({ id: d.id, ...(d.data() as Trade) }))
-    );
-  };
+  /* ───────────── DATA ───────────── */
+
+ const loadTrades = async (uid: string) => {
+  const q = query(collection(db, 'trades'), where('uid', '==', uid));
+  const snap = await getDocs(q);
+
+  setTrades(
+    snap.docs.map((d) => {
+      const data = d.data() as TradeData;
+      return {
+        id: d.id,
+        date: data.date,
+        symbol: data.symbol,
+        direction: data.direction,
+        entry: data.entry,
+        exit: data.exit,
+        lot: data.lot,
+        notes: data.notes,
+        pnl: data.pnl,
+      };
+    })
+  );
+};
+
 
   const pnl =
     ((trade.exit - trade.entry) * trade.lot) *
       (trade.direction === 'Buy' ? 1 : -1) || 0;
 
   const equityCurve = trades.reduce((acc: number[], t, i) => {
-    acc.push((acc[i - 1] || 0) + (t.pnl || 0));
+    acc.push((acc[i - 1] || 0) + t.pnl);
     return acc;
   }, []);
 
-  /* ───────────────── ACTIONS ───────────────── */
+  /* ───────────── ACTIONS ───────────── */
+
   const saveTrade = async () => {
     if (!user) return;
 
@@ -141,7 +164,7 @@ export default function DashboardPage() {
       t.exit,
       t.lot,
       t.pnl,
-      `"${(t.notes || '').replace(/"/g, '""')}"`,
+      `"${t.notes.replace(/"/g, '""')}"`,
     ]);
 
     const csv =
@@ -158,7 +181,8 @@ export default function DashboardPage() {
     document.body.removeChild(link);
   };
 
-  /* ───────────────── UI ───────────────── */
+  /* ───────────── UI ───────────── */
+
   return (
     <main className="p-8 max-w-6xl mx-auto space-y-8">
       <h1 className="text-2xl font-bold">Dashboard</h1>
@@ -194,9 +218,7 @@ export default function DashboardPage() {
         <input
           placeholder="Symbol"
           value={trade.symbol}
-          onChange={(e) =>
-            setTrade({ ...trade, symbol: e.target.value })
-          }
+          onChange={(e) => setTrade({ ...trade, symbol: e.target.value })}
         />
         <select
           value={trade.direction}
@@ -214,33 +236,25 @@ export default function DashboardPage() {
           type="number"
           placeholder="Entry"
           value={trade.entry}
-          onChange={(e) =>
-            setTrade({ ...trade, entry: +e.target.value })
-          }
+          onChange={(e) => setTrade({ ...trade, entry: +e.target.value })}
         />
         <input
           type="number"
           placeholder="Exit"
           value={trade.exit}
-          onChange={(e) =>
-            setTrade({ ...trade, exit: +e.target.value })
-          }
+          onChange={(e) => setTrade({ ...trade, exit: +e.target.value })}
         />
         <input
           type="number"
           placeholder="Lot"
           value={trade.lot}
-          onChange={(e) =>
-            setTrade({ ...trade, lot: +e.target.value })
-          }
+          onChange={(e) => setTrade({ ...trade, lot: +e.target.value })}
         />
         <textarea
           className="col-span-2"
           placeholder="Notes"
           value={trade.notes}
-          onChange={(e) =>
-            setTrade({ ...trade, notes: e.target.value })
-          }
+          onChange={(e) => setTrade({ ...trade, notes: e.target.value })}
         />
 
         <div className="col-span-2 font-semibold">
@@ -297,7 +311,15 @@ export default function DashboardPage() {
                   <button
                     className="text-blue-600"
                     onClick={() => {
-                      setTrade(t);
+                      setTrade({
+                        date: t.date,
+                        symbol: t.symbol,
+                        direction: t.direction,
+                        entry: t.entry,
+                        exit: t.exit,
+                        lot: t.lot,
+                        notes: t.notes,
+                      });
                       setEditingId(t.id);
                     }}
                   >
